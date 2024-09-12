@@ -2,81 +2,90 @@
 
 ### About it
 
-This API have as goal demonstrate familiarity with Docker containers and some software development skills. It uses [FastAPI](https://fastapi.tiangolo.com/) Framework to expose four endpoints:
+This API demonstrates familiarity with Docker containers and basic software development skills. It uses the [FastAPI](https://fastapi.tiangolo.com/) framework to expose four endpoints:
 
 - **`GET /hello_world`**
-    Should returns a 200 status code with `{ "message": "Hello World!" }` JSON response.
+    Returns a 200 status code with a JSON response: `{ "message": "Hello World!" }`.
 - **`GET /current_time?name=some_name`**
-    Should returns a 200 status code with `{ "timestamp": 1700000000, "message": "Hello some_name" }`
+    Returns a 200 status code with a JSON response: `{ "timestamp": 1700000000, "message": "Hello some_name" }`
 - **`GET /healthcheck`**
-    Should returns a 200 status code to indicate that the service is healthy
+    Returns a 200 status code to indicate that the service is healthy.
 - **`GET /docs`**
-    This is a standard route created by FastAPI to expose the API' Swagger.
+    This is a standard route created by FastAPI to expose the API's Swagger documentation.
 
 ### Running locally
 
-Using a virtual envioriments, install the dependencies with:
+To run the API locally using a virtual environment, first install the dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Then, run the application with:
+Then, start the application with:
 
 ```bash
 fastapi dev api
 ```
 
-This should make the application available, by default, on port 8000. Use the flag `--help` for more options.
+By default, the application will be available on port 8000. Use the `--help` flag for more options.
+
+##### Disclaimer
+
+*While running the application locally with the default fastapi-cli command, the logs will remain in the standard output. To get structured JSON log output, run the application using:*
+
+```bash
+python -m api
+```
 
 ### Building Docker images
 
 #### Staging image
 
-The staging image has the objective to run in a safe envioriment. It still keep some commands thatmay represents some issue security, but are welcome for debuging.
+The staging image is intended for use in a safe environment. It retains some commands that may pose security risks but are useful for debugging.
 
 Create it with:
-
 ```bash
 docker build . -t api:staging --target builder
 ```
 
-Than run it with:
-
+Then, run it with:
 ```bash
 docker run --rm -p 8000:8000 api:staging
 ```
 
 #### Production image
 
-The production image adds a layer of security over the staging, as this image is [distroless](https://github.com/GoogleContainerTools/distroless). To keep it available, is required to keep the python image from the `builder` target with the same version from the distroless.
+The production image adds an extra layer of security over the staging image by using a [distroless](https://github.com/GoogleContainerTools/distroless). base. Ensure that the Python version in the `builder` target matches the distroless image.
 
 Create it with:
-
 ```bash
 docker build . -t api:production
 ```
 
-Than run it with:
-
+Then, run it with:
 ```bash
 docker run --rm -p 8000:8000 api:production
 ```
 
 ### Pushing the image
 
-Docker images shouldn't being pushed to remotes manually, but if you desire to push an image to a private remote, as ECR for example, you should follow the [AWS userguide](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html). Pushing images to any private remote usually  have the following steps:
+While Docker images are usually pushed to remotes automatically in CI/CD pipelines, if you want to push an image manually to a private remote, such as AWS ECR, follow the [AWS user guide](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html). 
+
+Here are the typical steps for pushing images to a private remote:
 
 1. **Authenticate**
-    This step usually envolves the `docker login` command to get yourself authenticated. For AWS ECR it should be something like:
+    This step involves using the `docker login` command. For AWS ECR, the command would look like this:
     ```bash
     aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.region.amazonaws.com
     ```
 2. **Create and/or locate the target image**
-    When you creates the image with the flag `-t`, you sets the name:tag of the image. In the examples or creating the image, it creates the images `api:production` and `api:staging`. To push images for ECR, it requires to have the following patter name: `${AWS_ACCOUNT_ID}.dkr.ecr.region.amazonaws.com/${APPLICATION_NAME}:${TAG_OR_VERSION}`. For us, would be something like: `${AWS_ACCOUNT_ID}.dkr.ecr.region.amazonaws.com/api:production-0.0.1`.
+    When creating the image with the -t flag, you specify the image name and tag. For ECR, the image name should follow this pattern:
+    `${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${APPLICATION_NAME}:${TAG_OR_VERSION}`
+    For example:
+    `${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/api:production-0.0.1`
 
 3. **Pushing the image**
-    After authenticated, the pushing step should be very similar to any other remote:
+    Once authenticated, push the image to the remote registry:
     ```bash
     docker push ${AWS_ACCOUNT_ID}.dkr.ecr.region.amazonaws.com/api:production-0.0.1
     ```

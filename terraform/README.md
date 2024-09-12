@@ -7,9 +7,9 @@ Demonstrate familiarity with Docker containers and some software development ski
 but we do expect a terraform plan to work on this Terraform code. We will be checking the syntax for correctness and demonstrated
 understanding how Terraform and the AWS provider works
 
-This terraform module was create and validated with [LocalStack](https://www.localstack.cloud/) using a free plan, than doesn't support some of AWS features, like ECR, ELBv2, and ECS.
+This Terraform module was created and validated using [LocalStack](https://www.localstack.cloud/) with a free plan, which does not support some AWS features, such as ECR, ELBv2, and ECS.
 
-Part of this documentation was generated using [terraform-docs](https://github.com/terraform-docs/terraform-docs) and may be gerated/updated with the following command:
+Part of this documentation was generated using [terraform-docs](https://github.com/terraform-docs/terraform-docs) and can be regenerated or updated with the following command:
 
 ```bash
 terraform-docs markdown table --output-file README.md --output-mode inject .
