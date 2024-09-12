@@ -15,6 +15,9 @@ Part of this documentation was generated using [terraform-docs](https://github.c
 terraform-docs markdown table --output-file README.md --output-mode inject .
 ```
 
+### AWS Infrastructure
+
+![Infrastructure](./canoe.jpg)
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
