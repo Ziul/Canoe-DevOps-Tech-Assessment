@@ -9,6 +9,7 @@ data "aws_availability_zones" "available" {
 # VPC Module
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
+  version = "5.13.0"
 
   name = "ecs-vpc"
   cidr = "10.0.0.0/16"
@@ -20,9 +21,7 @@ module "vpc" {
   enable_nat_gateway = true
   single_nat_gateway = true
 
-  tags = {
-    Name = "ecs-vpc"
-  }
+  tags = local.tags
 }
 
 resource "aws_acm_certificate" "imported_cert" {
@@ -38,35 +37,41 @@ resource "aws_ecs_cluster" "ecs_cluster" {
 
 # ECR Repository
 resource "aws_ecr_repository" "service_repo" {
-  name = "service-repo"
+  name = var.name
+}
+
+# CloudWatch Group
+resource "aws_cloudwatch_log_group" "ecs_log_group" {
+  name              = "/ecs/service"
+  retention_in_days = 30  # ajuste o tempo de retenção conforme necessário
 }
 
 # ECS Task Definition
 resource "aws_ecs_task_definition" "task" {
-  family                   = "ecs-task"
-  container_definitions    = <<DEFINITION
-[
-  {
-    "name": "service",
-    "image": "${aws_ecr_repository.service_repo.repository_url}:latest",
-    "essential": true,
-    "portMappings": [
-      {
-        "containerPort": 8000,
-        "hostPort": 80
-      }
-    ],
-    "logConfiguration": {
-      "logDriver": "awslogs",
-      "options": {
-        "awslogs-group": "/ecs/service",
-        "awslogs-region": "${var.region}",
-        "awslogs-stream-prefix": "ecs"
+  family = "ecs-task-${var.name}"
+  container_definitions = jsonencode([
+    {
+      name      = var.name
+      image     = "${aws_ecr_repository.service_repo.repository_url}:latest"
+      cpu       = var.cpu
+      memory    = var.memory
+      essential = true
+      portMappings = [
+        {
+          containerPort = var.containerPort
+          hostPort      = 80
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs_log_group.name
+          awslogs-region        = "${var.region}"
+          awslogs-stream-prefix = "ecs"
+        }
       }
     }
-  }
-]
-DEFINITION
+  ])
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   memory                   = var.memory
@@ -76,11 +81,13 @@ DEFINITION
 
 # ECS Service
 resource "aws_ecs_service" "ecs_service" {
-  name            = "ecs-service"
-  cluster         = aws_ecs_cluster.ecs_cluster.id
-  task_definition = aws_ecs_task_definition.task.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                               = var.name
+  cluster                            = aws_ecs_cluster.ecs_cluster.id
+  task_definition                    = aws_ecs_task_definition.task.arn
+  desired_count                      = var.desired_count
+  deployment_maximum_percent         = var.ecs_service_deployment_maximum_percent
+  deployment_minimum_healthy_percent = var.ecs_service_deployment_minimum_healthy_percent
+  launch_type                        = "FARGATE"
   network_configuration {
     subnets          = module.vpc.private_subnets
     security_groups  = [aws_security_group.ecs_service_sg.id]
@@ -89,15 +96,16 @@ resource "aws_ecs_service" "ecs_service" {
   load_balancer {
     target_group_arn = aws_lb_target_group.target_group.arn
     container_name   = "service"
-    container_port   = 80
+    container_port   = var.containerPort
   }
+  tags = local.tags
 
   depends_on = [aws_lb_listener.http, aws_lb_listener.https]
 }
 
 # Load Balancer
 resource "aws_lb" "ecs_lb" {
-  name               = "ecs-lb"
+  name               = "ecs-lb-${var.name}"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.lb_sg.id]
@@ -106,7 +114,7 @@ resource "aws_lb" "ecs_lb" {
 
 # Target Group
 resource "aws_lb_target_group" "target_group" {
-  name     = "ecs-tg"
+  name     = "ecs-tg-${var.name}"
   port     = 80
   protocol = "HTTP"
   vpc_id   = module.vpc.vpc_id
@@ -205,6 +213,6 @@ resource "aws_iam_role" "ecs_task_execution_role" {
 
   managed_policy_arns = [
     "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
-    "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+    # "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess" # Only includes if is desired to delete logs also.
   ]
 }
